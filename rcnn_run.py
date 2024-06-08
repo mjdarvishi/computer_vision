@@ -1,0 +1,132 @@
+import os
+import zipfile
+
+
+import os
+import json
+from PIL import Image
+import torch
+import torchvision.transforms as transforms
+
+
+def load_data_set():
+    dataset_dir = 'ships-in-aerial-images'
+    dataset_zip = 'ships-in-aerial-images.zip'
+    # Check if the dataset zip file exists
+    if not os.path.exists(dataset_zip):
+        # Download the Kaggle dataset
+        os.system('kaggle datasets download siddharthkumarsah/ships-in-aerial-images')
+        print(f"Dataset {dataset_zip} downloaded.")
+    else:
+        print(f"Dataset {dataset_zip} already exists.")
+
+    # Check if the dataset directory exists
+    if not os.path.exists(dataset_dir):
+        # Unzip the dataset
+        with zipfile.ZipFile(dataset_zip, 'r') as zip_ref:
+            zip_ref.extractall(dataset_dir)
+            print(f"Dataset unzipped into directory {dataset_dir}.")
+    else:
+        print(f"Dataset directory {dataset_dir} already exists.")
+
+
+def create_coco_dir():
+    # Define the directories to be created
+    directories = [
+        'coco_content/ships-in-aerial-images/ships-aerial-images/coco_train',
+        'coco_content/ships-in-aerial-images/ships-aerial-images/coco_test',
+        'coco_content/ships-in-aerial-images/ships-aerial-images/coco_valid'
+    ]
+
+    # Check and create each directory if it does not exist
+    for directory in directories:
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+            print(f"Directory {directory} created.")
+        else:
+            print(f"Directory {directory} already exists.")
+
+
+def convert_2_COCO(input_dir, output_dir):
+
+    annotations_path = os.path.join(output_dir, 'annotations.json')
+    if os.path.exists(annotations_path):
+        print("Conversion has already been done. Exiting...")
+        return
+    categories = [{"id": 1, "name": "ship"}]
+    ann_id = 1
+    img_id = 0
+
+    coco_dataset = {
+        "info": {},
+        "licenses": [],
+        "categories": categories,
+        "images": [],
+        "annotations": []
+    }
+
+    images_path = os.path.join(input_dir, "images")
+    labels_path = os.path.join(input_dir, "labels")
+
+    for image_file in os.listdir(images_path):
+        # Getting Dimensions
+        image_path = os.path.join(images_path, image_file)
+        image = Image.open(image_path)
+        width, height = image.size
+
+        # Add the image to the COCO dataset
+        image_dict = {
+            "id": img_id,
+            "width": width,
+            "height": height,
+            "file_name": image_path
+        }
+        coco_dataset["images"].append(image_dict)
+
+        # Load the bounding box annotations for the image
+        with open(os.path.join(labels_path, f'{image_file[:-4]}.txt'), 'r') as f:
+            annotations = f.read().strip().split("\n")
+
+        # Loop through the annotations and add them to the COCO dataset
+        for ann in annotations:
+            if len(ann.split()) != 5:
+                continue
+            _, x, y, w, h = map(float, ann.split())
+            x_min, y_min = int((x - w / 2) * width), int((y - h / 2) * height)
+            x_max, y_max = int((x + w / 2) * width), int((y + h / 2) * height)
+            ann_dict = {
+                "id": ann_id,
+                "image_id": img_id,
+                "category_id": 1,
+                "bbox": [x_min, y_min, x_max - x_min, y_max - y_min],
+                "area": (x_max - x_min) * (y_max - y_min),
+                "iscrowd": 0
+            }
+            coco_dataset["annotations"].append(ann_dict)
+            ann_id += 1
+        img_id += 1
+
+    print("Conversion Complete!")
+    print("Final Image Count : {}".format(len(coco_dataset["images"])))
+
+    if not os.path.isdir(output_dir):
+        os.makedirs(output_dir)
+
+    # Save the COCO dataset to a JSON file
+    with open(os.path.join(output_dir, 'annotations.json'), 'w') as f:
+        json.dump(coco_dataset, f)
+
+load_data_set()
+create_coco_dir()
+train_input_dir = "ships-in-aerial-images/ships-aerial-images/train"
+train_output_dir = "coco_content/ships-in-aerial-images/ships-aerial-images/coco_train"
+
+test_input_dir = "ships-in-aerial-images/ships-aerial-images/test"
+test_output_dir = "coco_content/ships-in-aerial-images/ships-aerial-images/coco_test"
+
+valid_input_dir = "ships-in-aerial-images/ships-aerial-images/valid"
+valid_output_dir = "coco_content/ships-in-aerial-images/ships-aerial-images/coco_valid"
+
+convert_2_COCO(train_input_dir, train_output_dir)
+convert_2_COCO(test_input_dir, test_output_dir)
+convert_2_COCO(valid_input_dir, valid_output_dir)
