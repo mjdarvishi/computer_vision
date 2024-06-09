@@ -176,7 +176,6 @@ def train_model(model, train_loader, optimizer, scheduler, num_epochs, eval_peri
         model.train()
         epoch_loss = 0
         for images, targets in train_loader:
-            print(targets)
             images = [image.to(device) for image in images]
             targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
 
@@ -201,13 +200,9 @@ def train_model(model, train_loader, optimizer, scheduler, num_epochs, eval_peri
                 pass
     return model
 
-def collate_fn(batch):
-    images = [item[0] for item in batch]
-    image_ids = [item[1] for item in batch]
-
-    images = torch.stack(images, dim=0)
-
-    return images, image_ids
+def custom_collate_fn(batch):
+    images, targets = zip(*batch)
+    return list(images), list(targets)
 
 if __name__ == "__main__":
     load_data_set()
@@ -234,8 +229,8 @@ if __name__ == "__main__":
     model = FasterRCNN(backbone, num_classes=1, rpn_anchor_generator=anchor_generator)
 
     optimizer = SGD(model.parameters(), lr=0.001)
-    train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True, num_workers=2,collate_fn=collate_fn, )
-    test_loader = DataLoader(test_dataset, batch_size=4, shuffle=False, num_workers=2,collate_fn=collate_fn)
+    train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True, num_workers=2,collate_fn=custom_collate_fn, )
+    test_loader = DataLoader(test_dataset, batch_size=4, shuffle=False, num_workers=2,collate_fn=custom_collate_fn)
 
     model_save_path = "faster_rcnn_model.pth"
     num_epochs = 20
