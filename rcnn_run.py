@@ -3,25 +3,29 @@ import zipfile
 from torch.utils.data import Dataset
 import json
 from PIL import Image
-import os
-import json
-from PIL import Image
-
+import random
+import cv2
+import matplotlib.pyplot as plt
+from torchvision.models.detection import FasterRCNN
+from torchvision.models.detection.backbone_utils import resnet_fpn_backbone
+from torchvision.models.detection.rpn import AnchorGenerator
+from torch.optim import SGD
+from torch.utils.data import DataLoader
+from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
+from torchvision.transforms import functional as F
+from torchvision.transforms import Compose, Resize, ToTensor
+import torch
 
 def load_data_set():
     dataset_dir = 'ships-in-aerial-images'
     dataset_zip = 'ships-in-aerial-images.zip'
-    # Check if the dataset zip file exists
     if not os.path.exists(dataset_zip):
-        # Download the Kaggle dataset
         os.system('kaggle datasets download siddharthkumarsah/ships-in-aerial-images')
         print(f"Dataset {dataset_zip} downloaded.")
     else:
         print(f"Dataset {dataset_zip} already exists.")
 
-    # Check if the dataset directory exists
     if not os.path.exists(dataset_dir):
-        # Unzip the dataset
         with zipfile.ZipFile(dataset_zip, 'r') as zip_ref:
             zip_ref.extractall(dataset_dir)
             print(f"Dataset unzipped into directory {dataset_dir}.")
@@ -30,14 +34,12 @@ def load_data_set():
 
 
 def create_coco_dir():
-    # Define the directories to be created
     directories = [
         'coco_content/ships-in-aerial-images/ships-aerial-images/coco_train',
         'coco_content/ships-in-aerial-images/ships-aerial-images/coco_test',
         'coco_content/ships-in-aerial-images/ships-aerial-images/coco_valid'
     ]
 
-    # Check and create each directory if it does not exist
     for directory in directories:
         if not os.path.exists(directory):
             os.makedirs(directory)
@@ -47,7 +49,6 @@ def create_coco_dir():
 
 
 def convert_2_COCO(input_dir, output_dir):
-
     annotations_path = os.path.join(output_dir, 'annotations.json')
     if os.path.exists(annotations_path):
         print("Conversion has already been done. Exiting...")
@@ -68,12 +69,10 @@ def convert_2_COCO(input_dir, output_dir):
     labels_path = os.path.join(input_dir, "labels")
 
     for image_file in os.listdir(images_path):
-        # Getting Dimensions
         image_path = os.path.join(images_path, image_file)
         image = Image.open(image_path)
         width, height = image.size
 
-        # Add the image to the COCO dataset
         image_dict = {
             "id": img_id,
             "width": width,
@@ -82,11 +81,9 @@ def convert_2_COCO(input_dir, output_dir):
         }
         coco_dataset["images"].append(image_dict)
 
-        # Load the bounding box annotations for the image
         with open(os.path.join(labels_path, f'{image_file[:-4]}.txt'), 'r') as f:
             annotations = f.read().strip().split("\n")
 
-        # Loop through the annotations and add them to the COCO dataset
         for ann in annotations:
             if len(ann.split()) != 5:
                 continue
@@ -111,7 +108,6 @@ def convert_2_COCO(input_dir, output_dir):
     if not os.path.isdir(output_dir):
         os.makedirs(output_dir)
 
-    # Save the COCO dataset to a JSON file
     with open(os.path.join(output_dir, 'annotations.json'), 'w') as f:
         json.dump(coco_dataset, f)
 
@@ -121,7 +117,6 @@ class COCODataset(Dataset):
         self.root_dir = root_dir
         self.transform = transform
 
-        # Load COCO annotations
         with open(annotation_file, 'r') as f:
             self.annotations = json.load(f)
         
@@ -137,10 +132,9 @@ class COCODataset(Dataset):
         if self.transform:
             image = self.transform(image)
         
-        return image, image_id
+        return image, image_id, file_name
     
 
-#dictionaries to store metadata and dataset instances.
 class MetadataCatalog:
     _metadata = {}
 
@@ -163,106 +157,132 @@ class DatasetCatalog:
     def register(name, dataset):
         DatasetCatalog._datasets[name] = dataset
 
-
-# laod data set
-load_data_set()
-create_coco_dir()
-train_input_dir = "ships-in-aerial-images/ships-aerial-images/train"
-train_output_dir = "coco_content/ships-in-aerial-images/ships-aerial-images/coco_train"
-
-test_input_dir = "ships-in-aerial-images/ships-aerial-images/test"
-test_output_dir = "coco_content/ships-in-aerial-images/ships-aerial-images/coco_test"
-
-valid_input_dir = "ships-in-aerial-images/ships-aerial-images/valid"
-valid_output_dir = "coco_content/ships-in-aerial-images/ships-aerial-images/coco_valid"
-
-# convert to coco 
-convert_2_COCO(train_input_dir, train_output_dir)
-convert_2_COCO(test_input_dir, test_output_dir)
-convert_2_COCO(valid_input_dir, valid_output_dir)
-
-# load coco data
-train_dataset = COCODataset(train_input_dir, train_output_dir+'/'+'annotations.json')
-test_dataset = COCODataset(test_input_dir, test_output_dir+'/'+'annotations.json')
-valid_dataset = COCODataset(valid_input_dir, valid_output_dir+'/'+'annotations.json')
-
-
-# Register metadata
-# Define metadata for the training dataset, specifying the classes present in the dataset
-metadata = {"thing_classes": ["ship"]} 
-
-# Register the metadata with a unique identifier for the training dataset
-MetadataCatalog.register("trainDataset_v3", metadata)
-
-# Register the training dataset itself with the same unique identifier
-DatasetCatalog.register("trainDataset_v3", train_dataset)
-
-# Retrieve registered metadata for the training dataset
-trainMetadata = MetadataCatalog.get("trainDataset_v3")
-
-# Retrieve registered training dataset using the same identifier
-trainDicts = DatasetCatalog.get("trainDataset_v3")
-for i in range(5):
-    image, image_id= trainDicts[i]
-    print("Image ID:", image_id,image)
-
-
-
-import torchvision
-from torchvision.models.detection import FasterRCNN
-from torchvision.models.detection.backbone_utils import resnet_fpn_backbone
-from torchvision.models.detection.rpn import AnchorGenerator
-from torch.optim import SGD
-from torch.utils.data import DataLoader
-from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
-from torchvision.transforms import functional as F
-from torchvision.transforms import Compose, Resize, ToTensor
-import torch
-
-# Define backbone for the Faster R-CNN model
-backbone = resnet_fpn_backbone('resnet50', pretrained=True)
-
-# Define anchor generator for the Faster R-CNN model
-anchor_generator = AnchorGenerator(sizes=((32, 64, 128, 256, 512),),
-                                   aspect_ratios=((0.5, 1.0, 2.0),))
-
-# Define the Faster R-CNN model
-model = FasterRCNN(backbone, num_classes=1, rpn_anchor_generator=anchor_generator)
-
-# Define the optimizer
-optimizer = SGD(model.parameters(), lr=0.001)
-
-# Define data loaders (assuming you have train_loader and test_loader already defined)
-train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True, num_workers=2)
-test_loader = DataLoader(test_dataset, batch_size=4, shuffle=False, num_workers=2)
-
-# Define the number of warmup iterations
-warmup_iters = 600
-
-# Define the maximum number of iterations
-max_iters = 800
-
-# Define the learning rate scheduler
-scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[500], gamma=0.05)
-
-# Define the evaluation period
-test_eval_period = 500
-
-
-import random
-import cv2
-import matplotlib.pyplot as plt
-
-# Convert trainDicts to a list of dictionaries where each dictionary contains image and image_id
-train_dicts = [{"file_name": image_id, "image": image} for image, image_id in trainDicts]
-
-# Randomly sample 3 elements from the train_dicts list
-sampled_dicts = random.sample(train_dicts, 3)
-
-# Visualize sampled images
-for d in sampled_dicts:
-    img = cv2.imread(d["image"])
-    img_rgb = cv2.cvtColor(d["image"], cv2.COLOR_BGR2RGB)  # Convert BGR to RGB for matplotlib
-    plt.imshow(img_rgb)
-    plt.axis('off')
+def visualize_sampled_images(train_dicts):
+    sampled_dicts = random.sample(train_dicts, 3)
+    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+    for ax, d in zip(axes, sampled_dicts):
+        img = cv2.imread(d["path"])
+        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        ax.imshow(img_rgb)
+        ax.axis('off')
+    plt.tight_layout()
     plt.show()
+
+def train_model(model, train_loader, optimizer, scheduler, num_epochs, eval_period):
+    device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+    model.to(device)
+
+    for epoch in range(num_epochs):
+        model.train()
+        epoch_loss = 0
+        for images, targets in train_loader:
+            images = [image.to(device) for image in images]
+            targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
+
+            loss_dict = model(images, targets)
+            losses = sum(loss for loss in loss_dict.values())
+
+            optimizer.zero_grad()
+            losses.backward()
+            optimizer.step()
+
+            epoch_loss += losses.item()
+        
+        scheduler.step()
+
+        print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {epoch_loss/len(train_loader)}")
+
+        if (epoch + 1) % eval_period == 0:
+            model.eval()
+            with torch.no_grad():
+                # evaluate(model, test_loader, device)
+                #TODO: add evalutation
+                pass
+    return model
+
+if __name__ == "__main__":
+    load_data_set()
+    create_coco_dir()
+    train_input_dir = "ships-in-aerial-images/ships-aerial-images/train"
+    train_output_dir = "coco_content/ships-in-aerial-images/ships-aerial-images/coco_train"
+    test_input_dir = "ships-in-aerial-images/ships-aerial-images/test"
+    test_output_dir = "coco_content/ships-in-aerial-images/ships-aerial-images/coco_test"
+    valid_input_dir = "ships-in-aerial-images/ships-aerial-images/valid"
+    valid_output_dir = "coco_content/ships-in-aerial-images/ships-aerial-images/coco_valid"
+
+    convert_2_COCO(train_input_dir, train_output_dir)
+    convert_2_COCO(test_input_dir, test_output_dir)
+    convert_2_COCO(valid_input_dir, valid_output_dir)
+
+    train_dataset = COCODataset(train_input_dir, train_output_dir+'/'+'annotations.json')
+    test_dataset = COCODataset(test_input_dir, test_output_dir+'/'+'annotations.json')
+    valid_dataset = COCODataset(valid_input_dir, valid_output_dir+'/'+'annotations.json')
+
+    metadata = {"thing_classes": ["ship"]}
+    MetadataCatalog.register("trainDataset_v3", metadata)
+    DatasetCatalog.register("trainDataset_v3", train_dataset)
+
+    trainMetadata = MetadataCatalog.get("trainDataset_v3")
+    trainDicts = DatasetCatalog.get("trainDataset_v3")
+    for i in range(5):
+        image, image_id, file_name = trainDicts[i]
+        print("Image ID:", image_id, image, file_name)
+
+    backbone = resnet_fpn_backbone('resnet50', pretrained=True)
+    anchor_generator = AnchorGenerator(sizes=((32, 64, 128, 256, 512),),
+                                       aspect_ratios=((0.5, 1.0, 2.0),))
+    model = FasterRCNN(backbone, num_classes=1, rpn_anchor_generator=anchor_generator)
+
+    optimizer = SGD(model.parameters(), lr=0.001)
+    train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True, num_workers=2)
+    test_loader = DataLoader(test_dataset, batch_size=4, shuffle=False, num_workers=2)
+
+    model_save_path = "faster_rcnn_model.pth"
+    num_epochs = 20
+    eval_period = 5
+
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[500], gamma=0.05)
+
+    if os.path.exists(model_save_path):
+        checkpoint = torch.load(model_save_path)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+        model.eval()
+        print("Model loaded successfully.")
+    else:
+        model = train_model(model, train_loader, optimizer, scheduler, num_epochs, eval_period)
+
+        torch.save({
+            'epoch': num_epochs,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'scheduler_state_dict': scheduler.state_dict(),
+        }, model_save_path)
+        print("Training complete and model saved successfully.")
+
+    num_epochs = 20
+    eval_period = 5
+
+    device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+    model.to(device)
+
+    for epoch in range(num_epochs):
+        model.train()
+        epoch_loss = 0
+        for images, targets in train_loader:
+            images = [image.to(device) for image in images]
+            targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
+
+            loss_dict = model(images, targets)
+            losses = sum(loss for loss in loss_dict.values())
+
+            optimizer.zero_grad()
+            losses.backward()
+            optimizer.step()
+
+            epoch_loss += losses.item()
+        
+        scheduler.step()
+
+        print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {epoch_loss/len(train_loader)}")
