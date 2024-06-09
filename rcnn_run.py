@@ -135,38 +135,16 @@ class COCODataset(Dataset):
         return image, image_id, file_name
     
 
-class MetadataCatalog:
-    _metadata = {}
-
-    @staticmethod
-    def get(name):
-        return MetadataCatalog._metadata.get(name, {})
-
-    @staticmethod
-    def register(name, metadata):
-        MetadataCatalog._metadata[name] = metadata
-
-class DatasetCatalog:
-    _datasets = {}
-
-    @staticmethod
-    def get(name):
-        return DatasetCatalog._datasets.get(name, [])
-
-    @staticmethod
-    def register(name, dataset):
-        DatasetCatalog._datasets[name] = dataset
-
-def visualize_sampled_images(train_dicts):
-    sampled_dicts = random.sample(train_dicts, 3)
-    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
-    for ax, d in zip(axes, sampled_dicts):
-        img = cv2.imread(d["path"])
-        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        ax.imshow(img_rgb)
-        ax.axis('off')
-    plt.tight_layout()
-    plt.show()
+# def visualize_sampled_images(train_dicts):
+#     sampled_dicts = random.sample(train_dicts, 3)
+#     fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+#     for ax, d in zip(axes, sampled_dicts):
+#         img = cv2.imread(d["path"])
+#         img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+#         ax.imshow(img_rgb)
+#         ax.axis('off')
+#     plt.tight_layout()
+#     plt.show()
 
 def train_model(model, train_loader, optimizer, scheduler, num_epochs, eval_period):
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
@@ -217,16 +195,6 @@ if __name__ == "__main__":
     train_dataset = COCODataset(train_input_dir, train_output_dir+'/'+'annotations.json')
     test_dataset = COCODataset(test_input_dir, test_output_dir+'/'+'annotations.json')
     valid_dataset = COCODataset(valid_input_dir, valid_output_dir+'/'+'annotations.json')
-
-    metadata = {"thing_classes": ["ship"]}
-    MetadataCatalog.register("trainDataset_v3", metadata)
-    DatasetCatalog.register("trainDataset_v3", train_dataset)
-
-    trainMetadata = MetadataCatalog.get("trainDataset_v3")
-    trainDicts = DatasetCatalog.get("trainDataset_v3")
-    for i in range(5):
-        image, image_id, file_name = trainDicts[i]
-        print("Image ID:", image_id, image, file_name)
 
     backbone = resnet_fpn_backbone('resnet50', pretrained=True)
     anchor_generator = AnchorGenerator(sizes=((32, 64, 128, 256, 512),),
