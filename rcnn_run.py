@@ -53,26 +53,28 @@ def convert_2_COCO(input_dir, output_dir):
     if os.path.exists(annotations_path):
         print("Conversion has already been done. Exiting...")
         return
-    categories = [{"id": 1, "name": "ship"}]
+    categories = [{"id" : 1, "name" : "ship"}]
     ann_id = 1
     img_id = 0
 
     coco_dataset = {
-        "info": {},
-        "licenses": [],
-        "categories": categories,
-        "images": [],
-        "annotations": []
+        "info" : {},
+        "licenses" : [],
+        "categories" : categories,
+        "images" : [],
+        "annotations" : []
     }
 
     images_path = os.path.join(input_dir, "images")
     labels_path = os.path.join(input_dir, "labels")
 
     for image_file in os.listdir(images_path):
+        # Getting Dimensions
         image_path = os.path.join(images_path, image_file)
         image = Image.open(image_path)
         width, height = image.size
 
+        # Add the image to the COCO dataset
         image_dict = {
             "id": img_id,
             "width": width,
@@ -81,12 +83,13 @@ def convert_2_COCO(input_dir, output_dir):
         }
         coco_dataset["images"].append(image_dict)
 
+        # Load the bounding box annotations for the image
         with open(os.path.join(labels_path, f'{image_file[:-4]}.txt'), 'r') as f:
             annotations = f.read().strip().split("\n")
 
+        # Loop through the annotations and add them to the COCO dataset
         for ann in annotations:
-            if len(ann.split()) != 5:
-                continue
+            if len(ann.split()) != 5: continue
             _, x, y, w, h = map(float, ann.split())
             x_min, y_min = int((x - w / 2) * width), int((y - h / 2) * height)
             x_max, y_max = int((x + w / 2) * width), int((y + h / 2) * height)
@@ -131,20 +134,12 @@ class COCODataset(Dataset):
 
         if self.transform:
             image = self.transform(image)
-        
-        return image, image_id, file_name
+        else:
+            image = F.to_tensor(image)
+
+        return image, image_id
     
 
-# def visualize_sampled_images(train_dicts):
-#     sampled_dicts = random.sample(train_dicts, 3)
-#     fig, axes = plt.subplots(1, 3, figsize=(15, 5))
-#     for ax, d in zip(axes, sampled_dicts):
-#         img = cv2.imread(d["path"])
-#         img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-#         ax.imshow(img_rgb)
-#         ax.axis('off')
-#     plt.tight_layout()
-#     plt.show()
 
 def train_model(model, train_loader, optimizer, scheduler, num_epochs, eval_period):
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
@@ -154,6 +149,7 @@ def train_model(model, train_loader, optimizer, scheduler, num_epochs, eval_peri
         model.train()
         epoch_loss = 0
         for images, targets in train_loader:
+            print(targets)
             images = [image.to(device) for image in images]
             targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
 
@@ -178,6 +174,14 @@ def train_model(model, train_loader, optimizer, scheduler, num_epochs, eval_peri
                 pass
     return model
 
+def collate_fn(batch):
+    images = [item[0] for item in batch]
+    image_ids = [item[1] for item in batch]
+
+    images = torch.stack(images, dim=0)
+
+    return images, image_ids
+
 if __name__ == "__main__":
     load_data_set()
     create_coco_dir()
@@ -191,10 +195,11 @@ if __name__ == "__main__":
     convert_2_COCO(train_input_dir, train_output_dir)
     convert_2_COCO(test_input_dir, test_output_dir)
     convert_2_COCO(valid_input_dir, valid_output_dir)
+    transform = Compose([Resize((416, 416)), ToTensor()])
 
-    train_dataset = COCODataset(train_input_dir, train_output_dir+'/'+'annotations.json')
-    test_dataset = COCODataset(test_input_dir, test_output_dir+'/'+'annotations.json')
-    valid_dataset = COCODataset(valid_input_dir, valid_output_dir+'/'+'annotations.json')
+    train_dataset = COCODataset(train_input_dir, train_output_dir+'/'+'annotations.json',transform=transform)
+    test_dataset = COCODataset(test_input_dir, test_output_dir+'/'+'annotations.json',transform=transform)
+    valid_dataset = COCODataset(valid_input_dir, valid_output_dir+'/'+'annotations.json',transform=transform)
 
     backbone = resnet_fpn_backbone('resnet50', pretrained=True)
     anchor_generator = AnchorGenerator(sizes=((32, 64, 128, 256, 512),),
@@ -202,8 +207,8 @@ if __name__ == "__main__":
     model = FasterRCNN(backbone, num_classes=1, rpn_anchor_generator=anchor_generator)
 
     optimizer = SGD(model.parameters(), lr=0.001)
-    train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True, num_workers=2)
-    test_loader = DataLoader(test_dataset, batch_size=4, shuffle=False, num_workers=2)
+    train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True, num_workers=2,collate_fn=collate_fn, )
+    test_loader = DataLoader(test_dataset, batch_size=4, shuffle=False, num_workers=2,collate_fn=collate_fn)
 
     model_save_path = "faster_rcnn_model.pth"
     num_epochs = 20
