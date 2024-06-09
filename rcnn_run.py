@@ -126,6 +126,18 @@ class COCODataset(Dataset):
     def __len__(self):
         return len(self.annotations['images'])
     
+class COCODataset(Dataset):
+    def __init__(self, root_dir, annotation_file, transform=None):
+        self.root_dir = root_dir
+        self.transform = transform
+
+        with open(annotation_file, 'r') as f:
+            self.annotations = json.load(f)
+        
+    def __len__(self):
+        return len(self.annotations['images'])
+    
+
     def __getitem__(self, idx):
         image_info = self.annotations['images'][idx]
         image_id = image_info['id']
@@ -135,9 +147,24 @@ class COCODataset(Dataset):
         if self.transform:
             image = self.transform(image)
         else:
-            image = F.to_tensor(image)
+            image = ToTensor()(image)  # Ensure image is a tensor even if no transform is provided
+        
+        # Prepare the target
+        target = {
+            'image_id': torch.tensor(image_id),
+            'boxes': [],
+            'labels': []
+        }
+        
+        for ann in self.annotations['annotations']:
+            if ann['image_id'] == image_id:
+                target['boxes'].append(ann['bbox'])
+                target['labels'].append(ann['category_id'])
 
-        return image, image_id
+        target['boxes'] = torch.tensor(target['boxes'], dtype=torch.float32)
+        target['labels'] = torch.tensor(target['labels'], dtype=torch.int64)
+        
+        return image, target
     
 
 
