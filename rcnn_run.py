@@ -147,9 +147,9 @@ class COCODataset(Dataset):
         
         for ann in self.annotations['annotations']:
             if ann['image_id'] == image_id:
-                # if any(x <= 0 for x in ann['bbox'][2:]):  # Check for negative width or height
-                #     print("Invalid bounding box:", ann['bbox'], "in image:", file_name)
-                #     continue
+                if any(x <= 0 for x in ann['bbox'][2:]):  # Check for negative width or height
+                    print("Invalid bounding box:", ann['bbox'], "in image:", file_name,'size of image',image_info['width'],image_info['height'])
+                    # continue
                 target['boxes'].append(ann['bbox'])
                 target['labels'].append(ann['category_id'])
 
@@ -193,6 +193,7 @@ def train_model(model, train_loader, optimizer, scheduler, num_epochs, eval_peri
 
 def custom_collate_fn(batch):
     images, targets = zip(*batch)
+    print(targets)
     return list(images), list(targets)
 
 def show_images_with_boxes(dataset, num_images=10):
@@ -269,8 +270,8 @@ if __name__ == "__main__":
     model = FasterRCNN(backbone, num_classes=1, rpn_anchor_generator=anchor_generator)
 
     optimizer = SGD(model.parameters(), lr=0.001)
-    train_loader = DataLoader(train_dataset, shuffle=True, collate_fn=custom_collate_fn,num_workers=2,)
-    test_loader = DataLoader(test_dataset, shuffle=False, collate_fn=custom_collate_fn,num_workers=2,)
+    train_loader = DataLoader(train_dataset, shuffle=False, collate_fn=custom_collate_fn,num_workers=2,batch_size=5)
+    test_loader = DataLoader(test_dataset, shuffle=False, collate_fn=custom_collate_fn,num_workers=2,batch_size=5)
 
     model_save_path = "faster_rcnn_model.pth"
     num_epochs = 20
