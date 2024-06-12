@@ -217,8 +217,8 @@ if __name__ == "__main__":
     convert_2_COCO(train_input_dir, train_output_dir)
     convert_2_COCO(test_input_dir, test_output_dir)
     convert_2_COCO(valid_input_dir, valid_output_dir)
-    transform = Compose([Resize((416, 416)), ToTensor()])
-
+    # transform = Compose([Resize((416, 416)), ToTensor()])
+    transform = None
     train_dataset = COCODataset(train_input_dir, train_output_dir+'/'+'annotations.json',transform=transform)
     test_dataset = COCODataset(test_input_dir, test_output_dir+'/'+'annotations.json',transform=transform)
     valid_dataset = COCODataset(valid_input_dir, valid_output_dir+'/'+'annotations.json',transform=transform)
