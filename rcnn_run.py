@@ -4,7 +4,6 @@ from torch.utils.data import Dataset
 import json
 from PIL import Image
 import random
-import cv2
 import matplotlib.pyplot as plt
 from torchvision.models.detection import FasterRCNN
 from torchvision.models.detection.backbone_utils import resnet_fpn_backbone
@@ -15,6 +14,7 @@ from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 from torchvision.transforms import functional as F
 from torchvision.transforms import Compose, Resize, ToTensor
 import torch
+import numpy as np
 
 def load_data_set():
     dataset_dir = 'ships-in-aerial-images'
@@ -126,17 +126,6 @@ class COCODataset(Dataset):
     def __len__(self):
         return len(self.annotations['images'])
     
-class COCODataset(Dataset):
-    def __init__(self, root_dir, annotation_file, transform=None):
-        self.root_dir = root_dir
-        self.transform = transform
-
-        with open(annotation_file, 'r') as f:
-            self.annotations = json.load(f)
-        
-    def __len__(self):
-        return len(self.annotations['images'])
-    
 
     def __getitem__(self, idx):
         image_info = self.annotations['images'][idx]
@@ -158,6 +147,9 @@ class COCODataset(Dataset):
         
         for ann in self.annotations['annotations']:
             if ann['image_id'] == image_id:
+                if any(x <= 0 for x in ann['bbox'][2:]):  # Check for negative width or height
+                    print("Invalid bounding box:", ann['bbox'], "in image:", file_name,'size of image',image_info['width'],image_info['height'])
+                    # continue
                 target['boxes'].append(ann['bbox'])
                 target['labels'].append(ann['category_id'])
 
@@ -171,7 +163,6 @@ class COCODataset(Dataset):
 def train_model(model, train_loader, optimizer, scheduler, num_epochs, eval_period):
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
     model.to(device)
-
     for epoch in range(num_epochs):
         model.train()
         epoch_loss = 0
@@ -196,14 +187,64 @@ def train_model(model, train_loader, optimizer, scheduler, num_epochs, eval_peri
             model.eval()
             with torch.no_grad():
                 # evaluate(model, test_loader, device)
-                #TODO: add evalutation
+                #TODO: add evaluation
                 pass
     return model
 
 def custom_collate_fn(batch):
     images, targets = zip(*batch)
+    print(targets)
     return list(images), list(targets)
 
+def show_images_with_boxes(dataset, num_images=10):
+    fig, axes = plt.subplots(2, 5, figsize=(20, 8))
+    axes = axes.flatten()
+    
+    random_indices = random.sample(range(len(dataset)), num_images)
+    
+    for i, idx in enumerate(random_indices):
+        image, target = dataset[idx]
+        image = image.permute(1, 2, 0).numpy()
+        image = np.clip(image, 0, 1)  # Clip values to range [0, 1]
+
+        boxes = target['boxes'].numpy()
+        labels = target['labels'].numpy()
+
+        axes[i].imshow(image)
+        axes[i].axis('off')
+
+        for box, label in zip(boxes, labels):
+            x, y, w, h = box
+            category = dataset.annotations['categories'][label - 1]['name']  # Subtract 1 since COCO class indices start from 1
+            axes[i].add_patch(plt.Rectangle((x, y), w, h, linewidth=2, edgecolor='yellow', facecolor='none'))
+            axes[i].text(x, y, s=category, color='yellow', verticalalignment='top')
+    
+    plt.tight_layout()
+    plt.show()
+    
+def show_first_10_images_with_boxes(dataset):
+    fig, axes = plt.subplots(2, 5, figsize=(20, 8))
+    axes = axes.flatten()
+    
+    for i in range(10):
+        image, target = dataset[i]
+        image = image.permute(1, 2, 0).numpy()
+        image = np.clip(image, 0, 1)  # Clip values to range [0, 1]
+
+        boxes = target['boxes'].numpy()
+        labels = target['labels'].numpy()
+
+        axes[i].imshow(image)
+        axes[i].axis('off')
+
+        for box, label in zip(boxes, labels):
+            x, y, w, h = box
+            category = dataset.annotations['categories'][label - 1]['name']  # Subtract 1 since COCO class indices start from 1
+            axes[i].add_patch(plt.Rectangle((x, y), w, h, linewidth=2, edgecolor='yellow', facecolor='none'))
+            axes[i].text(x, y, s=category, color='yellow', verticalalignment='top')
+    
+    plt.tight_layout()
+    plt.show()
 if __name__ == "__main__":
     load_data_set()
     create_coco_dir()
@@ -217,11 +258,11 @@ if __name__ == "__main__":
     convert_2_COCO(train_input_dir, train_output_dir)
     convert_2_COCO(test_input_dir, test_output_dir)
     convert_2_COCO(valid_input_dir, valid_output_dir)
-    # transform = Compose([Resize((416, 416)), ToTensor()])
-    transform = None
-    train_dataset = COCODataset(train_input_dir, train_output_dir+'/'+'annotations.json',transform=transform)
-    test_dataset = COCODataset(test_input_dir, test_output_dir+'/'+'annotations.json',transform=transform)
-    valid_dataset = COCODataset(valid_input_dir, valid_output_dir+'/'+'annotations.json',transform=transform)
+
+    train_dataset = COCODataset(train_input_dir, train_output_dir+'/'+'annotations.json')
+    test_dataset = COCODataset(test_input_dir, test_output_dir+'/'+'annotations.json')
+    valid_dataset = COCODataset(valid_input_dir, valid_output_dir+'/'+'annotations.json')
+    # show_images_with_boxes(train_dataset)
 
     backbone = resnet_fpn_backbone('resnet50', pretrained=True)
     anchor_generator = AnchorGenerator(sizes=((32, 64, 128, 256, 512),),
@@ -229,8 +270,8 @@ if __name__ == "__main__":
     model = FasterRCNN(backbone, num_classes=1, rpn_anchor_generator=anchor_generator)
 
     optimizer = SGD(model.parameters(), lr=0.001)
-    train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True, num_workers=2,collate_fn=custom_collate_fn, )
-    test_loader = DataLoader(test_dataset, batch_size=4, shuffle=False, num_workers=2,collate_fn=custom_collate_fn)
+    train_loader = DataLoader(train_dataset, shuffle=False, collate_fn=custom_collate_fn,num_workers=2,batch_size=5)
+    test_loader = DataLoader(test_dataset, shuffle=False, collate_fn=custom_collate_fn,num_workers=2,batch_size=5)
 
     model_save_path = "faster_rcnn_model.pth"
     num_epochs = 20
