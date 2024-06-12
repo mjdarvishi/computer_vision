@@ -1,5 +1,5 @@
-train: F:\University\Computer Vision\project\Object-Detection-and-Recognition-in-Satelitte-Imagery/yolo_dataset/train/images
-val: F:\University\Computer Vision\project\Object-Detection-and-Recognition-in-Satelitte-Imagery/yolo_dataset/val/images
+train: C:\Users\Utente\Desktop\projects\etc\computer_vision/yolo_dataset/train/images
+val: C:\Users\Utente\Desktop\projects\etc\computer_vision/yolo_dataset/val/images
 
 nc: 1  # Number of classes
 names: ['ship']

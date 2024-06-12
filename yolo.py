@@ -209,42 +209,6 @@ def convert_coco_to_yolo(coco_json_path, output_dir):
 
     print(f"Conversion to YOLO format complete. Dataset saved to {output_dir}")
 
-    
-def test_yolo_model(model_path, data_yaml, test_images_dir, output_dir):
-    # Load the trained model
-    model = YOLO(model_path)
-
-    # Load the data configuration
-    model.data = data_yaml
-
-    # Create the output directory if it doesn't exist
-    os.makedirs(output_dir, exist_ok=True)
-
-    # Perform inference on the test dataset
-    test_images = [os.path.join(test_images_dir, img) for img in os.listdir(test_images_dir) if img.endswith('.jpg')]
-    
-    for img_path in test_images:
-        img = cv2.imread(img_path)
-        results = model(img)
-
-        # Plot the image with bounding boxes
-        fig, ax = plt.subplots(1, 1, figsize=(12, 8))
-        ax.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
-        for box in results.xyxy[0]:  # xyxy format
-            x_min, y_min, x_max, y_max, conf, cls = box
-            rect = plt.Rectangle((x_min, y_min), x_max - x_min, y_max - y_min, fill=False, color='red', linewidth=2)
-            ax.add_patch(rect)
-            ax.text(x_min, y_min, f'{model.names[int(cls)]} {conf:.2f}', bbox=dict(facecolor='yellow', alpha=0.5), clip_box=ax.clipbox, clip_on=True)
-
-        plt.axis('off')
-        plt.tight_layout()
-
-        # Save the plot
-        output_img_path = os.path.join(output_dir, os.path.basename(img_path))
-        plt.savefig(output_img_path, bbox_inches='tight', pad_inches=0)
-        plt.close(fig)
-
-    print(f"Inference completed. Results saved to {output_dir}")
 
 
 if __name__ == "__main__":
@@ -271,12 +235,11 @@ if __name__ == "__main__":
     convert_coco_to_yolo('coco_content/ships-in-aerial-images/ships-aerial-images/coco_valid/annotations.json', 'yolo_dataset/val')
     convert_coco_to_yolo('coco_content/ships-in-aerial-images/ships-aerial-images/coco_test/annotations.json', 'yolo_dataset/test')
 
-    # Training YOLOv5
     subprocess.run([
         'yolo', 'train',
         'data=ships.yaml',  # Data file
         'model=yolov8n.pt',  # Model configuration
-        'epochs=50',  # Number of epochs
+        'epochs=1',  # Number of epochs
         'imgsz=640',  # Image size
         'batch=16',  # Batch size
         'name=yolov8_ships'  # Name of the run
