@@ -1,5 +1,7 @@
 
 
+# model one
+
 # # Evaluating the model on the test dataset
 # metrics = model.val(conf = 0.25, split = 'test')
 
@@ -30,3 +32,15 @@
 
 # ax.imshow(img)
 # ax.axis('off')
+
+
+# model two
+
+
+# from IPython.display import Image
+# from IPython.display import display
+
+# x = Image(filename='runs/detect/train2/F1_curve.png')
+# y = Image(filename='runs/detect/train2/PR_curve.png')
+# z = Image(filename='runs/detect/train2/confusion_matrix.png')
+# display(x, y,z)

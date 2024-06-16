@@ -8,6 +8,8 @@ import matplotlib.image as mpimg
 import seaborn as sns
 
 
+
+#yolov8_ships
 model = YOLO('runs/detect/yolov8_ships2/weights/best.pt')
 
 
@@ -59,3 +61,21 @@ plt.subplots_adjust(wspace=0.05, hspace=0.05)
 plt.show()
 
 
+
+
+# model = YOLO("/runs/detect/yolov8_ships1/weights/best.pt")
+
+# img_path = "/ships-in-aerial-images/ships-aerial-images/valid/images/0006c52e8_jpg.rf.3dffdbf399b44601151f36d50bc8bba2.jpg"
+
+# img = cv2.imread(img_path)
+# results = model.predict(img_path, stream=True, imgsz=768, conf=0.5)
+
+# for result in results:
+#   boxes = result.boxes.cpu().numpy()
+#   for box in boxes:
+#     r = box.xyxy[0].astype(int)
+#     cv2.rectangle(img, r[:2], r[2:], (0, 255, 0), 2)
+
+# cv2_imshow(img)
+# cv2.waitKey(0)
+# cv2.destroyAllWindows()
