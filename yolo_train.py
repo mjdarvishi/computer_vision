@@ -28,7 +28,7 @@ if __name__ == "__main__":
     model = YOLO('yolov8m.pt')
 
     # yolov8_ships2
-    results = model.train(data="ships.yaml", epochs = 8, imgsz = 768, seed = 42, batch = 8, workers = 4,)
+    results = model.train(data="ships.yaml", epochs = 8, imgsz = 768, seed = 42, batch = 8, workers = 4)
 
     #yolov8_ships2
     # subprocess.run([
