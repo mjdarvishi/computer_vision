@@ -1,5 +1,13 @@
-# Object-Detection-and-Recognition-in-Satelitte-Imagery
+# Object detection in sattelite images with Yolo and Faster Rcnn Approach
 
-Too tired to write a proper description right now. 
+## Overview of the project
+In the ED_Analysis file there are analysis for data set and you can find these infomation:
+1- Intensity Distribution
+2- T-SNE Embedding
+3- PCA
+4- UMAP
+5- heatmap
 
-Just a repostitory demonstrating the YOLOv8 and Faster-RCNN algorithms on Ships/Vessels in Aerial Imagery dataset from [Kaggle](https://www.kaggle.com/datasets/siddharthkumarsah/ships-in-aerial-images).
+Insid the YOLO file there is the code for traning, testing and evaluation for the yolo algortim.
+
+For FRRCNN we use two approach one of them is using torch and another one is using the Detectron library.
